@@ -1,6 +1,5 @@
 #include "types.h"
 #include "user.h"
-//#include "proc.h"
 #define WNOHANG         1
 
 int exitWait(void);

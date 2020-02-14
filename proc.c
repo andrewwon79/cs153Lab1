@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
+//#include "user.h"
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -88,7 +88,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+//  p->priority = 0;
+  
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -149,7 +150,6 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
   release(&ptable.lock);
 }
 
@@ -373,6 +373,15 @@ waitpid(int pid,int *status,int options)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+
+//Changes the priorities of the processes
+void
+setpriority(int prioritynumber)
+{
+  struct proc *curproc = myproc();
+  curproc->priority=prioritynumber; 
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -385,22 +394,78 @@ void
 scheduler(void)
 {
   struct proc *p;
+  //struct proc *h;
+  //struct proc *tempproc=0;
   struct cpu *c = mycpu();
+  int lowest=99;
+  //int pid=0;
   c->proc = 0;
-  
   for(;;){
+    lowest=99;
     // Enable interrupts on this processor.
     sti();
+    //int lowest=32;
+    acquire(&ptable.lock);
+    /*for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	if(p->priority<lowest)
+	{
+	   lowest=p->priority;
+	   //tempproc=p;
+	}
+    }*/
+    //int lowest=99;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	  /*if(p->priority==0)
+	   continue;*/
+          if(p->priority<lowest&&p->state==RUNNABLE)
+          {
+             //cprintf("\n we are comparing p which is %d against the lowest which is %d\n", p->priority,lowest);
+             lowest=p->priority;
+	     //if(lowest==0){lowest=99;}
+             //tempproc=p;
+          }
+	  /*if(lowest==0)
+	  {
+	    lowest=99;
+	  }*/
+	  //cprintf("\np->priority is %d\n",p->priority);
+      }
 
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
-        continue;
-
+      continue;
+      /*for(h = ptable.proc; h < &ptable.proc[NPROC]; h++){
+          
+	  if(h->priority<lowest)
+          {
+	     cprintf("\n we are comparing h which is %d against the lowest which is %d\n", h->priority,lowest);
+             lowest=h->priority;
+             //tempproc=p;
+          }
+      }*/
+      //cprintf("\np priority is %d\n",p->priority);
+      if(p->priority==lowest){
+        //continue;
+	
+	/* CODE FOR AGING PRIORITY! */
+	
+      /*for(dummytemp = ptable.proc; dummytemp < &ptable.proc[NPROC]; dummytemp++){
+	if(dummytemp->priority<lowest&&dummytemp->state==RUNNABLE)
+	{
+	   lowest=dummytemp->priority;
+	   tempproc=dummytemp;
+	}*/
+	/*if(lowest==dummytemp->priority)
+	{
+	   p=tempproc;
+	}
+      }*/
+      //p=tempproc;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -412,11 +477,29 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
-
-  }
+ }
+	//Where we change priority 
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	if(p->state!= RUNNABLE||p->priority==0)
+	continue;
+	  cprintf("\n The lowest is %d \n",lowest);
+          if(p->priority!=lowest&&p->state==RUNNABLE&&lowest!=0)
+          {
+             cprintf("\n original priority is %d sub 1 which is %d\n", p->priority,p->priority-1);
+	     
+             p->priority-=1;
+             //tempproc=p;
+          }
+	  else if(p->priority==lowest)
+	  {
+	    p->priority+=1;
+	    cprintf("\n this priority ran, its original is %d when we add 1 it is %d\n", p->priority,p->priority+1);
+	  }
+          cprintf("\nthis for loop ran\n");
+      } 
+     release(&ptable.lock); 
+ }
 }
-
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
